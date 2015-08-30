@@ -33,6 +33,10 @@ var awesomer = {
 
 	run: function () {
 		console.clear();
+		
+		if (!confirm("Do you want to continue processing images?")) {
+			this.clearProcessedImages();
+		}
 
 		var self = this;
 		window.onbeforeunload = function(){
@@ -519,7 +523,8 @@ var awesomer = {
 	finishProcessingImage: function() {
 		this.markCurrentImageAsProcessed();
 		this.imagesProcessed++;
-		this.clickOnCloseImageIcon();
+		this.saveProcessedImages();
+		this.closeChildWindow();
 	},
 
 	markCurrentImageAsProcessed: function() {
@@ -530,7 +535,7 @@ var awesomer = {
 
 	},
 
-	clickOnCloseImageIcon: function () {
+	closeChildWindow: function () {
 
 		this.imageWindow.close();
 
