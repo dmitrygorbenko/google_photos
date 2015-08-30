@@ -1,21 +1,22 @@
-var IMAGES_CONTAINER_SELECTOR = ".B6Rt6d.zcLWac.eejsDc";
-var ACTIVE_IMAGES_SELECTOR = ".xfzUCb a";
-var IMAGE_HOVER_SELECTOR = ".dj55pd.yDSiEe.N8gJjf";
-var EDIT_PHOTO_ICON_SELECTION = ".mUbCce.p9Nwte.nBfeh[jsname=LgbsSe]";
-var CLOSE_IMAGE_ICON_SELECTOR = ".mUbCce.p9Nwte.nBfeh a";
-var RESET_IMAGE_BUTTON_SELECTOR = ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=Qccszc]";
-var AUTO_IMAGE_BUTTON_SELECTOR = ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=eIZYHf]";
-var SAVE_IMAGE_BUTTON_SELECTOR = ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=x8hlje]";
-var EDITING_PANEL_SELECTOR = ".dj55pd.yDSiEe";
-var LOADING_OVERLAY_SELECTOR = ".NPtrRe";
-var DISABLED_ELEMENT_CLASS_NAME = "RDPZE";
-var EDITING_LAYER_CLASS_NAMES = "dj55pd yDSiEe";
-var VIEWING_LAYER_CLASS_NAMES = "dj55pd yDSiEe N8gJjf";
-
-var secondsToWaitForLoading = 500;
-var pixelsToScroll = 500;
-
 var awesomer = {
+
+	IMAGES_CONTAINER_SELECTOR: ".B6Rt6d.zcLWac.eejsDc",
+	ACTIVE_IMAGES_SELECTOR: ".xfzUCb a",
+	IMAGE_HOVER_SELECTOR: ".dj55pd.yDSiEe.N8gJjf",
+	EDIT_PHOTO_ICON_SELECTOR: ".mUbCce.p9Nwte.nBfeh[jsname=LgbsSe]",
+	RESET_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=Qccszc]",
+	AUTO_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=eIZYHf]",
+	SAVE_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=x8hlje]",
+	SAVE_IMAGE_BUTTON_ON_SHARED_DIALOG_SELECTOR: ".O0WRkf.oG5Srb.HQ8yf.C0oVfc.kHssdc",
+	EDITING_PANEL_SELECTOR: ".dj55pd.yDSiEe",
+	LOADING_OVERLAY_SELECTOR: ".NPtrRe",
+	SHARED_PHOTO_DIALOG_SELECTOR: ".g3VIld.Up8vH.J9Nfi.iWO5td",
+	DISABLED_ELEMENT_CLASS_NAME: "RDPZE",
+	EDITING_LAYER_CLASS_NAMES: "dj55pd yDSiEe",
+	VIEWING_LAYER_CLASS_NAMES: "dj55pd yDSiEe N8gJjf",
+
+	secondsToWaitForLoading: 500,
+	pixelsToScroll: 500,
 
 	processedImages: {},
 	newImagesToProcess: [],
@@ -24,6 +25,7 @@ var awesomer = {
 
 	methodToExecute: "",
 	imagesProcessed: 0,
+	imageWindow: window,
 
 	debug: function() {
 		console.log.apply(console, arguments);
@@ -32,13 +34,22 @@ var awesomer = {
 	run: function () {
 		console.clear();
 
+		var self = this;
+		window.onbeforeunload = function(){
+			return self.beforeReloadingPage();
+		};
+
 		this.loadProcessedImages();
 
-		this.container = this.getNode(IMAGES_CONTAINER_SELECTOR);
-		this.executeIn("findNewImages", secondsToWaitForLoading);
+		this.container = this.getNode(window, this.IMAGES_CONTAINER_SELECTOR);
+		this.executeIn("findNewImages", this.secondsToWaitForLoading);
 	},
 
 	executeIn: function (method, seconds) {
+		if (window.stop === true) {
+			return;
+		}
+
 		if (typeof this[method] === "undefined") {
 			console.error("Failed to find method ", method, " to execute");
 			return;
@@ -61,7 +72,10 @@ var awesomer = {
 
 		this.waiter = function () {
 			if (window.d === true) {
-				debugger
+				debugger;
+			}
+			if (window.stop === true) {
+				return;
 			}
 			if (checkerFunction() === true) {
 				self.debug("condition matched !!!");
@@ -129,8 +143,8 @@ var awesomer = {
 		localStorage.setItem("processedImages", null);
 	},
 
-	getNode: function (selector, modifier, filter) {
-		var nodes = document.querySelectorAll(selector);
+	getNode: function (wind, selector, modifier, filter) {
+		var nodes = wind.document.querySelectorAll(selector);
 
 		// convert into normal array
 		nodes = Array.prototype.slice.call(nodes);
@@ -157,8 +171,8 @@ var awesomer = {
 		return nodes[0];
 	},
 
-	getNodes: function (selector) {
-		return this.getNode(selector, "all");
+	getNodes: function (wind, selector) {
+		return this.getNode(wind, selector, "all");
 	},
 
 	getHrefFromImage: function(image) {
@@ -171,7 +185,7 @@ var awesomer = {
 
 		this.newImagesToProcess = [];
 		var newImagesCount = 0;
-		var images = this.getNodes(ACTIVE_IMAGES_SELECTOR);
+		var images = this.getNodes(window, this.ACTIVE_IMAGES_SELECTOR);
 
 		var self = this;
 		images.forEach(function (image) {
@@ -211,9 +225,9 @@ var awesomer = {
 
 	scrollDownAndFindNextImages: function () {
 
-		this.container.scrollTop = parseInt(this.container.scrollTop) + pixelsToScroll;
+		this.container.scrollTop = parseInt(this.container.scrollTop) + this.pixelsToScroll;
 
-		this.executeIn("findNewImages", secondsToWaitForLoading);
+		this.executeIn("findNewImages", this.secondsToWaitForLoading);
 	},
 
 	processFoundImages: function () {
@@ -228,51 +242,43 @@ var awesomer = {
 		this.executeIn("processImage", 0);
 	},
 
-	getEditButton: function() {
-		return this.getNode(EDIT_PHOTO_ICON_SELECTION, "last", function (element) {
-			// yeah, 7 times upper to parent
-			var editingLayer = element;
-			for (var i = 0; i < 7; i++) {
-				editingLayer = editingLayer.parentNode;
-			}
-			if (editingLayer.className !== VIEWING_LAYER_CLASS_NAMES) {
-				return false;
-			}
-			return editingLayer.style.display !== "none" && element.style.display !== "none";
-		})
-	},
-
 	processImage: function (imageTag) {
 
 		this.imageToProcess = this.newImagesToProcess[this.indexOfProcessingImage];
 
 		this.debug("clicking on image: ", this.imageToProcess);
 
-		//var href = this.imageToProcess.href;
-		//console.log("href: ", href);
-		//this.imageWindow = window.open(href, "awesomer", "menubar=yes,location=yes,resizable=yes,scrollbars=yes,status=yes");
+		var href = this.imageToProcess.href;
 
-		this.clickOnElement(this.imageToProcess);
+		this.imageWindow = window.open(href, "awesomer", "menubar=yes,location=yes,resizable=yes,scrollbars=yes,status=yes");
 
-		this.debug("waiting for image to be opened");
+            this.debug("waiting for image to be opened in separate tab");
 
-		var self = this;
-		this.runWaiter("clickOnEditPhotoButton", function () {
-			var imageHover = self.getNode(IMAGE_HOVER_SELECTOR, "last", function (element) {
-				return element.style.display !== "none";
-			});
-			var editIcon = self.getEditButton();
-			if (!imageHover || !editIcon) {
-				return false;
-			}
-			return imageHover.style.visibility === "visible";
-		});
+            var self = this;
+            this.imageWindow.onload = function(event) {
+				
+				self.debug("image loaded !");
 
+                self.runWaiter("clickOnEditPhotoButton", function () {
+                    var imageHover = self.getNode(self.imageWindow, self.IMAGE_HOVER_SELECTOR, "last", function (element) {
+                            return element.style.display !== "none";
+                    });
+                    var editIcon = self.getEditButton();
+                    if (!imageHover || !editIcon) {
+                            return false;
+                    }
+	                var visibility = imageHover.style.visibility;
+                    return visibility === "visible" || visibility === "";
+                });
+
+            };
 	},
 
 	clickOnEditPhotoButton: function () {
 
 		var editIcon = this.getEditButton();
+		
+		this.debug("clicking on editing icon");
 
 		this.mouseDownUpOnElement(editIcon);
 
@@ -282,14 +288,14 @@ var awesomer = {
 	},
 
 	expectToEditingPanelToBeOpened: function() {
-		var loadingOverlay = this.getNode(LOADING_OVERLAY_SELECTOR, "last", function (element) {
+		var loadingOverlay = this.getNode(this.imageWindow, this.LOADING_OVERLAY_SELECTOR, "last", function (element) {
 			return element.style.display !== "none" && element.style.visibility !== "hidden";
 		});
 		if (loadingOverlay) {
 			return false;
 		}
 
-		var editingPanel = this.getNode(EDITING_PANEL_SELECTOR, "last", function (panel) {
+		var editingPanel = this.getNode(this.imageWindow, this.EDITING_PANEL_SELECTOR, "last", function (panel) {
 			if (panel.getAttribute("jslog").indexOf("data:media_item") === -1) {
 				return false;
 			}
@@ -310,7 +316,7 @@ var awesomer = {
 	},
 
 	expectToEditingPanelToBeClosed: function() {
-		var editingPanel = this.getNode(EDITING_PANEL_SELECTOR, "last", function (panel) {
+		var editingPanel = this.getNode(this.imageWindow, this.EDITING_PANEL_SELECTOR, "last", function (panel) {
 			if (panel.getAttribute("jslog").indexOf("data:media_item") === -1) {
 				return false;
 			}
@@ -318,18 +324,41 @@ var awesomer = {
 		});
 		return !editingPanel;
 	},
+	
+	getSharedDialog: function() {
+		return this.getNode(this.imageWindow, this.SHARED_PHOTO_DIALOG_SELECTOR, "last");
+	},
+
+	getEditButton: function() {
+		var self = this;
+		return this.getNode(this.imageWindow, this.EDIT_PHOTO_ICON_SELECTOR, "last", function (button) {
+			// yeah, 7 times upper to parent
+			var editingLayer = button;
+			for (var i = 0; i < 7; i++) {
+				editingLayer = editingLayer.parentNode;
+			}
+			if (editingLayer.className !== self.VIEWING_LAYER_CLASS_NAMES) {
+				return false;
+			}
+			if (button.getAttribute("jslog").indexOf("8916;") === -1) {
+				return false;
+			}
+			return editingLayer.style.display !== "none" && button.style.display !== "none";
+		});
+	},
 
 	getResetButton: function() {
-		return this.getNode(RESET_IMAGE_BUTTON_SELECTOR, "last", function (button) {
+		var self = this;
+		return this.getNode(this.imageWindow, this.RESET_IMAGE_BUTTON_SELECTOR, "last", function (button) {
 			// yeah, 9 times upper to parent
 			var editingLayer = button;
 			for (var i = 0; i < 9; i++) {
 				editingLayer = editingLayer.parentNode;
 			}
-			if (editingLayer.className !== EDITING_LAYER_CLASS_NAMES) {
+			if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
 				return false;
 			}
-			if (button.className.indexOf(DISABLED_ELEMENT_CLASS_NAME) !== -1) {
+			if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
 				return false;
 			}
 			if (editingLayer.style.display !== "none" && button.style.display !== "none") {
@@ -340,43 +369,58 @@ var awesomer = {
 	},
 
 	getAutoButton: function() {
-		return this.getNode(AUTO_IMAGE_BUTTON_SELECTOR, "last", function (button) {
+		var self = this;
+		return this.getNode(this.imageWindow, this.AUTO_IMAGE_BUTTON_SELECTOR, "last", function (button) {
 			// yeah, 9 times upper to parent
 			var editingLayer = button;
 			for (var i = 0; i < 9; i++) {
 				editingLayer = editingLayer.parentNode;
 			}
-			if (editingLayer.className !== EDITING_LAYER_CLASS_NAMES) {
+			if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
 				return false;
 			}
-			if (button.className.indexOf(DISABLED_ELEMENT_CLASS_NAME) !== -1) {
+			if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
 				return false;
 			}
 			if (editingLayer.style.display !== "none" && button.style.display !== "none") {
 				return true;
 			}
 			return false;
-		})
+		});
 	},
 
 	getSaveButton: function() {
-		return this.getNode(SAVE_IMAGE_BUTTON_SELECTOR, "last", function (button) {
+		var self = this;
+		return this.getNode(this.imageWindow, this.SAVE_IMAGE_BUTTON_SELECTOR, "last", function (button) {
 			// yeah, 3 times upper to parent
 			var editingLayer = button;
 			for (var i = 0; i < 3; i++) {
 				editingLayer = editingLayer.parentNode;
 			}
-			if (editingLayer.className !== EDITING_LAYER_CLASS_NAMES) {
+			if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
 				return false;
 			}
-			if (button.className.indexOf(DISABLED_ELEMENT_CLASS_NAME) !== -1) {
+			if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
 				return false;
 			}
 			if (editingLayer.style.display !== "none" && button.style.display !== "none") {
 				return true;
 			}
 			return false;
-		})
+		});
+	},
+
+	getSaveButtonOnSharedConfirmDialog: function() {
+		var self = this;
+		return this.getNode(this.imageWindow, this.SAVE_IMAGE_BUTTON_ON_SHARED_DIALOG_SELECTOR, "last", function (button) {
+			if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
+				return false;
+			}
+			if (button.style.display !== "none") {
+				return true;
+			}
+			return false;
+		});
 	},
 
 	checkIfPhotoIsEnhanced: function() {
@@ -420,6 +464,53 @@ var awesomer = {
 
 		this.mouseDownUpOnElement(saveButton);
 
+		this.debug("waiting for image be saved or confirm dialog to be opened...");
+
+		this.runWaiter("manageConfirmDialogOrEditingPanelClosed", this.expectDialogOrEditingPanelClosed.bind(this));
+	},
+
+	expectDialogOrEditingPanelClosed: function() {
+		var dialog = this.getSharedDialog();
+		var editingDialogClosed = this.expectToEditingPanelToBeClosed();
+		
+		if (editingDialogClosed) {
+			return true;
+		}
+
+		if (!editingDialogClosed && dialog) {
+			return true;
+		}
+
+		return false;
+	},
+
+	manageConfirmDialogOrEditingPanelClosed: function() {
+		var dialog = this.getSharedDialog();
+		var editingDialogClosed = this.expectToEditingPanelToBeClosed();
+
+		if (editingDialogClosed) {
+			this.debug("image is saved, finishing with this image...");
+			this.finishProcessingImage();
+			return;
+		}
+		
+		this.debug("confirmation dialog is opened. Waiting for Save button is ready to click...");
+
+		var self = this;
+		this.runWaiter("clickOnSaveButtonOnSharedConfirmDialog", function() {
+			var saveButton = self.getSaveButtonOnSharedConfirmDialog();
+			return !!saveButton;
+		});
+	},
+
+	clickOnSaveButtonOnSharedConfirmDialog: function() {
+
+		var saveButton = this.getSaveButtonOnSharedConfirmDialog();
+
+		this.debug("clicking on Save button on confirmation dialog: ", saveButton);
+
+		this.mouseDownUpOnElement(saveButton);
+
 		this.debug("waiting for image be saved...");
 
 		this.runWaiter("finishProcessingImage", this.expectToEditingPanelToBeClosed.bind(this));
@@ -441,30 +532,9 @@ var awesomer = {
 
 	clickOnCloseImageIcon: function () {
 
-		var closeImageIcon = this.getNode(CLOSE_IMAGE_ICON_SELECTOR, "last");
+		this.imageWindow.close();
 
-		this.debug("clicking on close image icon: ", closeImageIcon);
-
-		this.clickOnElement(closeImageIcon);
-
-		this.debug("waiting for image to be closed");
-
-		var self = this;
-		this.runWaiter("processFoundImages", function () {
-			var image_hover = self.getNode(IMAGE_HOVER_SELECTOR, "last", function (element) {
-				return element.style.display !== "none";
-			});
-			if (!image_hover) {
-				return true;
-			}
-			return image_hover.style.visibility === "hidden";
-		});
+		this.executeIn("processFoundImages", this.secondsToWaitForLoading);
 	}
 };
-
-
-window.onbeforeunload = function(){
-	return awesomer.beforeReloadingPage();
-};
-awesomer.clearProcessedImages();
 awesomer.run();
