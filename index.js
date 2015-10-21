@@ -3,20 +3,22 @@ var awesomer = {
 	IMAGES_CONTAINER_SELECTOR: ".B6Rt6d.zcLWac.eejsDc",
 	ACTIVE_IMAGES_SELECTOR: ".xfzUCb a",
 	IMAGE_HOVER_SELECTOR: ".dj55pd.yDSiEe.N8gJjf",
-	EDIT_PHOTO_ICON_SELECTOR: ".mUbCce.p9Nwte.nBfeh[jsname=LgbsSe]",
+	EDIT_PHOTO_ICON_SELECTOR: ".mUbCce.p9Nwte.cx6Jyd[jsname=LgbsSe]",
 	RESET_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=Qccszc]",
 	AUTO_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=eIZYHf]",
 	SAVE_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=x8hlje]",
 	SAVE_IMAGE_BUTTON_ON_SHARED_DIALOG_SELECTOR: ".O0WRkf.oG5Srb.HQ8yf.C0oVfc.kHssdc",
+	VIGNETTE_SLIDER_SELECTOR: ".fGflG.fo0gEd.nKeP7d[jsname=zQo8yb]",
 	EDITING_PANEL_SELECTOR: ".dj55pd.yDSiEe",
 	LOADING_OVERLAY_SELECTOR: ".NPtrRe",
 	SHARED_PHOTO_DIALOG_SELECTOR: ".g3VIld.Up8vH.J9Nfi.iWO5td",
 	DISABLED_ELEMENT_CLASS_NAME: "RDPZE",
-	EDITING_LAYER_CLASS_NAMES: "dj55pd yDSiEe",
+	EDITING_LAYER_CLASS_NAMES: "dj55pd yDSiEe TjOYYc",
 	VIEWING_LAYER_CLASS_NAMES: "dj55pd yDSiEe N8gJjf",
 
 	secondsToWaitForLoading: 500,
 	pixelsToScroll: 500,
+	secondsToWaitForVignetting: 100,
 
 	processedImages: {},
 	newImagesToProcess: [],
@@ -33,17 +35,18 @@ var awesomer = {
 
 	run: function () {
 		console.clear();
-		
-		if (!confirm("Do you want to continue processing images?")) {
-			this.clearProcessedImages();
+
+		this.loadProcessedImages();
+		if (Object.keys(this.processedImages).length > 0) {
+			if (!confirm("Do you want to continue processing images?")) {
+				this.clearProcessedImages();
+			}
 		}
 
 		var self = this;
 		window.onbeforeunload = function(){
 			return self.beforeReloadingPage();
 		};
-
-		this.loadProcessedImages();
 
 		this.container = this.getNode(window, this.IMAGES_CONTAINER_SELECTOR);
 		this.executeIn("findNewImages", this.secondsToWaitForLoading);
@@ -83,13 +86,13 @@ var awesomer = {
 			}
 			if (checkerFunction() === true) {
 				self.debug("condition matched !!!");
-				self.executeIn(functionToCallAfter, 50);
+				self.executeIn(functionToCallAfter, 100);
 				return;
 			}
 			self.debug("continue checking condition...");
 			setTimeout(function () {
 				self.waiter();
-			}, 10);
+			}, 500);
 		};
 
 		this.debug("starting checking condition...");
@@ -100,33 +103,53 @@ var awesomer = {
 		this.saveProcessedImages();
 	},
 
-	clickOnElement: function (element) {
+	addPositionToEvent: function(info, position) {
+		info.clientX = position.left;
+		info.clientY = position.top;
 
-		var clickEvent = new MouseEvent('click', {
-			button: 0,
-			view: window,
-			bubbles: true,
-			cancelable: true
-		});
+		info.layerX = 11;
+		info.layerY = 27;
 
-		element.dispatchEvent(clickEvent);
+		info.pageX = position.left;
+		info.pageY = position.top;
+
+		info.screenX = position.left;
+		info.screenY = position.top + 61;
+
+		info.x = position.left;
+		info.y = position.top;
+
+		return info;
 	},
 
-	mouseDownUpOnElement: function (element) {
-		var mouseDownEvent = new MouseEvent('mousedown', {
+	createMouseEvent: function(event, position) {
+		var eventInfo = {
 			button: 0,
 			view: window,
 			bubbles: true,
 			cancelable: true
-		});
-		var mouseUpEvent = new MouseEvent('mouseup', {
-			button: 0,
-			view: window,
-			bubbles: true,
-			cancelable: true
-		});
-		element.dispatchEvent(mouseDownEvent);
-		element.dispatchEvent(mouseUpEvent);
+		};
+		if (position) {
+			eventInfo = this.addPositionToEvent(eventInfo, position);
+		}
+		return new MouseEvent(event, eventInfo);
+	},
+
+	clickOnElement: function (element, position) {
+		element.dispatchEvent(this.createMouseEvent("click", position));
+	},
+
+	mouseDownUpOnElement: function (element, position) {
+		element.dispatchEvent(this.createMouseEvent("mousedown", position));
+		element.dispatchEvent(this.createMouseEvent("mouseup", position));
+	},
+
+	mouseDownUpOnElementWithDelay: function (element, callback, position) {
+		element.dispatchEvent(this.createMouseEvent("mousedown", position));
+		setTimeout((function(){
+			element.dispatchEvent(this.createMouseEvent("mouseup", position));
+			callback();
+		}).bind(this), 100);
 	},
 
 	loadProcessedImages: function() {
@@ -243,10 +266,10 @@ var awesomer = {
 		// step into next or first image
 		this.indexOfProcessingImage++;
 
-		this.executeIn("processImage", 0);
+		this.executeIn("openImage", 1000);
 	},
 
-	processImage: function (imageTag) {
+	openImage: function () {
 
 		this.imageToProcess = this.newImagesToProcess[this.indexOfProcessingImage];
 
@@ -256,26 +279,28 @@ var awesomer = {
 
 		this.imageWindow = window.open(href, "awesomer", "menubar=yes,location=yes,resizable=yes,scrollbars=yes,status=yes");
 
-            this.debug("waiting for image to be opened in separate tab");
+		this.debug("waiting for image to be opened in separate tab");
 
-            var self = this;
-            this.imageWindow.onload = function(event) {
-				
-				self.debug("image loaded !");
+		var self = this;
+		this.imageWindow.onload = function (event) {
 
-                self.runWaiter("clickOnEditPhotoButton", function () {
-                    var imageHover = self.getNode(self.imageWindow, self.IMAGE_HOVER_SELECTOR, "last", function (element) {
-                            return element.style.display !== "none";
-                    });
-                    var editIcon = self.getEditButton();
-                    if (!imageHover || !editIcon) {
-                            return false;
-                    }
-	                var visibility = imageHover.style.visibility;
-                    return visibility === "visible" || visibility === "";
-                });
+			self.debug("image window opened !");
 
-            };
+			self.debug("waiting for image interface to be loaded");
+
+			self.runWaiter("clickOnEditPhotoButton", function () {
+				var imageHover = self.getNode(self.imageWindow, self.IMAGE_HOVER_SELECTOR, "last", function (element) {
+					return element.style.display !== "none";
+				});
+				var editIcon = self.getEditButton();
+				if (!imageHover || !editIcon) {
+					return false;
+				}
+				var visibility = imageHover.style.visibility;
+				return visibility === "visible" || visibility === "";
+			});
+
+		};
 	},
 
 	clickOnEditPhotoButton: function () {
@@ -393,6 +418,28 @@ var awesomer = {
 		});
 	},
 
+	getVignetteSlider: function() {
+		var self = this;
+
+		return this.getNode(this.imageWindow, this.VIGNETTE_SLIDER_SELECTOR, "last", function (button) {
+			// yeah, 10 times upper to parent
+			var editingLayer = button;
+			for (var i = 0; i < 10; i++) {
+				editingLayer = editingLayer.parentNode;
+			}
+			if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
+				return false;
+			}
+			if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
+				return false;
+			}
+			if (editingLayer.style.display !== "none" && button.style.display !== "none") {
+				return true;
+			}
+			return false;
+		});
+	},
+
 	getSaveButton: function() {
 		var self = this;
 		return this.getNode(this.imageWindow, this.SAVE_IMAGE_BUTTON_SELECTOR, "last", function (button) {
@@ -454,10 +501,29 @@ var awesomer = {
 		this.debug("waiting for image to be enhanced...");
 
 		var self = this;
-		this.runWaiter("clickOnSavePhotoButton", function() {
+		this.runWaiter("decreaseVignetteLevel", function() {
 			var resetButton = self.getResetButton();
 			return !!resetButton;
 		});
+	},
+
+	decreaseVignetteLevel: function() {
+
+		var vignetteSlider = this.getVignetteSlider();
+
+		var sliderRect = vignetteSlider.getBoundingClientRect();
+
+		this.debug("clicking on Vignette slider: ", vignetteSlider);
+
+		var codeAfterClick = (function(){
+
+			this.debug("waiting for image to be vignetted...");
+
+			this.executeIn("clickOnSavePhotoButton", this.secondsToWaitForVignetting);
+
+		}).bind(this);
+
+		this.mouseDownUpOnElementWithDelay(vignetteSlider, codeAfterClick, {top: sliderRect.top + 20, left: sliderRect.left + 1});
 	},
 
 	clickOnSavePhotoButton: function() {
@@ -532,7 +598,6 @@ var awesomer = {
 		this.imageToProcess = this.newImagesToProcess[this.indexOfProcessingImage];
 		var href = this.getHrefFromImage(this.imageToProcess);
 		this.processedImages[href] = true;
-
 	},
 
 	closeChildWindow: function () {
