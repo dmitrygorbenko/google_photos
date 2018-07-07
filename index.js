@@ -40,6 +40,7 @@ var awesomer = {
 		console.clear();
 
 		// clean internal vars
+		this.processedImages = {};
 		window.d = false;
 		window.stop = false;
 		// and timers
@@ -100,6 +101,7 @@ var awesomer = {
 
 	clearProcessedImages: function() {
 		localStorage.setItem("processedImages", null);
+		this.processedImages = {};
 	},
 
 	saveProcessedImages: function() {
@@ -199,7 +201,7 @@ var awesomer = {
 
 		this.debug("waiting for image to be opened in separate tab...");
 
-		this.imageWindow.onload = function (event) {
+		this.imageWindow.onload = function () {
 
 			self.debug("image window has opened !");
 
@@ -262,7 +264,6 @@ var awesomer = {
 	clickOnEditPhotoButton: function () {
 
 		let
-			self = this,
 			editIcon;
 
 		this.debug("---------- next stage: clicking on editing button ----------");
@@ -454,11 +455,7 @@ var awesomer = {
 			return true;
 		}
 
-		if (!editingDialogClosed && dialog) {
-			return true;
-		}
-
-		return false;
+		return (!editingDialogClosed && dialog);
 	},
 
 	manageConfirmDialogOrEditingPanelClosed: function() {
@@ -954,10 +951,7 @@ var awesomer = {
 				if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
 					return false;
 				}
-				if (button.style.display !== "none") {
-					return true;
-				}
-				return false;
+				return (button.style.display !== "none");
 			},
 			arrayIndex: "last"
 		});
@@ -1078,10 +1072,6 @@ var awesomer = {
 
 				self.debug("waiter: condition matched, going to launch the method: " + options.method);
 				self._decreaseTabShift();
-
-				if (options.onDone) {
-					options.onDone.call(self);
-				}
 
 				self.executeMethodIn(options.method, 100);
 
