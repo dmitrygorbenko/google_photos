@@ -1,19 +1,23 @@
 var awesomer = {
 
-	IMAGES_CONTAINER_SELECTOR: ".B6Rt6d.zcLWac.eejsDc",
-	ACTIVE_IMAGES_SELECTOR: ".xfzUCb a",
-	IMAGE_CONTROL_PANEL_SELECTOR: ".c9yG5b",
-	EDIT_PHOTO_ICON_SELECTOR: ".mUbCce.p9Nwte.cx6Jyd[jsname=LgbsSe]",
-	RESET_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=Qccszc]",
-	AUTO_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=eIZYHf]",
-	SAVE_IMAGE_BUTTON_SELECTOR: ".O0WRkf.oG5Srb.UxubU.C0oVfc[jsname=x8hlje]",
+	IMAGES_CONTAINER_SELECTOR: ".B6Rt6d.zcLWac.eejsDc", // checked
+	ACTIVE_IMAGES_SELECTOR: ".xfzUCb a", // checked
+	IMAGE_CONTROL_PANEL_SELECTOR: ".c9yG5b", // checked
+	EDIT_PHOTO_ICON_SELECTOR: ".mUbCce.p9Nwte.cx6Jyd[jsname=LgbsSe]", // checked
+
+	EDITING_PANEL_SELECTOR: ".KoMJ2e", // checked
+	EDITING_PANEL_PARENT_CLASS_NAMES: "zJLXnd", // checked
+	EDITING_LAYER_CLASS_NAMES: "Cv8Rjc yDSiEe TjOYYc", // checked
+
+	UNDO_EDITS_BUTTON_SELECTOR: ".A9jyad.O0WRkf.oG5Srb.UxubU.C0oVfc.pbHg1.y0Utrd[jsname=cBx52c]", // checked
+
+	AUTO_IMAGE_BUTTON_SELECTOR: ".FLYYeb.i9xfbb.N2RpBe[jsname=ibnC6b]",
+	DONE_BUTTON_SELECTOR: ".A9jyad.O0WRkf.oG5Srb.UxubU.C0oVfc.OFRlLd[jsname=plIjzf]",
 	SAVE_IMAGE_BUTTON_ON_SHARED_DIALOG_SELECTOR: ".O0WRkf.oG5Srb.HQ8yf.C0oVfc.kHssdc",
 	VIGNETTE_SLIDER_SELECTOR: ".fGflG.fo0gEd.nKeP7d[jsname=zQo8yb]",
-	EDITING_PANEL_SELECTOR: ".dj55pd.yDSiEe",
 	LOADING_OVERLAY_SELECTOR: ".NPtrRe",
 	SHARED_PHOTO_DIALOG_SELECTOR: ".g3VIld.Up8vH.J9Nfi.iWO5td",
 	DISABLED_ELEMENT_CLASS_NAME: "RDPZE",
-	EDITING_LAYER_CLASS_NAMES: "dj55pd yDSiEe TjOYYc",
 	VIEWING_LAYER_CLASS_NAMES: "Cv8Rjc yDSiEe YwDltc",
 
 	secondsToWaitForLoading: 500,
@@ -69,7 +73,7 @@ var awesomer = {
 		if (addStack) {
 			args.push(stack);
 		}
-		
+
 		console.log.apply(console, args);
 	},
 
@@ -94,7 +98,7 @@ var awesomer = {
 			});
 		}
 		window.__awesomer_child_windows = [];
-		
+
 		this.loadProcessedImages();
 
 		if (Object.keys(this.processedImages).length > 0) {
@@ -106,6 +110,8 @@ var awesomer = {
 		window.onbeforeunload = function(){
 			return self.beforeReloadingPage();
 		};
+
+		this.debug("launching getNode to find images container...");
 
 		this.container = this.getNode({
 			context:  window,
@@ -147,9 +153,13 @@ var awesomer = {
 
 	runWaiter: function (options) {
 		let
+			iterationsDone = 0,
+			maxIterations = 20,
 			self = this;
 
 		this._increaseTabShift();
+
+		this.debug("waiter: starting checking condition by timer...");
 
 		this.waiter = function () {
 
@@ -163,10 +173,16 @@ var awesomer = {
 				return;
 			}
 
+			self.debug("waiter: launching checker...");
+
 			checkerResult = options.checker();
 
+			self.debug("waiter: checker() completed its execution");
+
 			if (checkerResult === true) {
-				self.debug("condition matched !!! Going to launch method: " + options.method);
+
+
+				self.debug("waiter: condition matched, going to launch the method: " + options.method);
 				self._decreaseTabShift();
 
 				if (options.onDone) {
@@ -174,13 +190,21 @@ var awesomer = {
 				}
 
 				self.executeMethodIn(options.method, 100);
+
 				return;
 			}
-			self.debug("continue checking condition...");
+
+			self.debug("waiter: setting timer to launch next check...");
 
 			if (window.__awesomer_condition_checker) {
 				clearTimeout(window.__awesomer_condition_checker);
 				window.__awesomer_condition_checker = null;
+			}
+
+			iterationsDone++;
+			if (iterationsDone > maxIterations) {
+				self.debug("waiter: sorry, we reached maximum amount of waiting attempts (max is " + maxIterations + ")");
+				return;
 			}
 
 			window.__awesomer_condition_checker = setTimeout(function () {
@@ -188,7 +212,6 @@ var awesomer = {
 			}, 500);
 		};
 
-		this.debug("starting condition checks...");
 		this.waiter();
 	},
 
@@ -370,6 +393,7 @@ var awesomer = {
 
 		this.newImagesToProcess = [];
 		newImagesCount = 0;
+
 		images = this.getNodes(window, this.ACTIVE_IMAGES_SELECTOR);
 
 		images.forEach(function (image) {
@@ -445,28 +469,22 @@ var awesomer = {
 		this.imageWindow = window.open(href, "awesomer", "menubar=yes,location=yes,resizable=yes,scrollbars=yes,status=yes");
 		window.__awesomer_child_windows.push(this.imageWindow);
 
-		this.debug("waiting for image to be opened in separate tab");
+		this.debug("waiting for image to be opened in separate tab...");
 
 		this.imageWindow.onload = function (event) {
 
-			self._increaseTabShift();
+			self.debug("image window has opened !");
 
-			self.debug("image window opened !");
-
-			self.debug("waiting for image interface to be loaded");
+			self.debug("waiting for the image interface to be loaded...");
 
 			self.runWaiter({
 				method: "clickOnEditPhotoButton",
-				checker: self._checkerIfImageInterfaceIsLoaded.bind(self),
-				onDone: function () {
-					self._decreaseTabShift();
-				}
+				checker: self.checker_ifImageInterfaceIsLoaded.bind(self)
 			});
-
 		};
 	},
 
-	_checkerIfImageInterfaceIsLoaded: function() {
+	checker_ifImageInterfaceIsLoaded: function() {
 
 		let
 			ready = false,
@@ -474,23 +492,29 @@ var awesomer = {
 			controlPanel,
 			editIcon;
 
+		this.debug("checker: if image interface is loaded");
+
+		this.debug("launching getNode to find image control panel...");
+
 		controlPanel = this.getNode({
 			context: this.imageWindow,
 			selector: this.IMAGE_CONTROL_PANEL_SELECTOR,
-			arrayIndex: "last",
 			preFilter: function (element) {
 				return element.style.display !== "none";
-			}
+			},
+			arrayIndex: "last"
 		});
+
+		if (!controlPanel) {
+			this.debug("couldn't find image control panel");
+			return false;
+		}
+
+		this.debug("image control panel found !");
 
 		editIcon = this.getEditButton();
 
-		if (!controlPanel) {
-			this.debug("couldn't find control panel");
-			return false;
-		}
 		if (!editIcon) {
-			this.debug("couldn't find edit button");
 			return false;
 		}
 
@@ -505,103 +529,315 @@ var awesomer = {
 		return ready;
 	},
 
+	// =======================================================================================================
+	
 	clickOnEditPhotoButton: function () {
 
 		let
 			self = this,
-			editIcon = this.getEditButton();
+			editIcon;
 
-		this._increaseTabShift();
+		this.debug("---------- next stage: clicking on editing button ----------");
+
+		editIcon = this.getEditButton();
 
 		this.debug("clicking on editing icon...");
 
 		this.mouseDownUpOnElement(editIcon);
 
+		this.debug("clicked");
+
 		this.debug("waiting for editing interface to be loaded...");
 
 		this.runWaiter({
 			method: "checkIfPhotoIsEnhanced",
-			checker: this._expectEditingPanelToBeOpened.bind(this),
-			onDone: function () {
-				self._decreaseTabShift();
-			}
+			checker: this.checker_expectEditingPanelToBeOpened.bind(this)
 		});
 	},
 
-	_expectEditingPanelToBeOpened: function() {
+	checker_expectEditingPanelToBeOpened: function() {
 		let
 			editingPanel,
-			resetButton,
+			undoButton,
 			autoButton,
 			loadingOverlay;
+
+		this._increaseTabShift();
+
+		this.debug("checker: editing panel is opened");
+
+		this.debug("launching getNode to find loading overlay...");
 
 		loadingOverlay = this.getNode({
 			context: this.imageWindow,
 			selector: this.LOADING_OVERLAY_SELECTOR,
-			arrayIndex: "last",
 			preFilter: function (element) {
 				return element.style.display !== "none" && element.style.visibility !== "hidden";
-			}
+			},
+			arrayIndex: "last"
 		});
 
 		if (loadingOverlay) {
 			this.debug("loading overlay is still there... waiting....");
+			this._decreaseTabShift();
 			return false;
 		}
 
-		editingPanel = this.getNode({
-			context: this.imageWindow,
-			selector: this.EDITING_PANEL_SELECTOR,
-			arrayIndex: "last",
-			preFilter: function (panel) {
-				if (panel.getAttribute("jslog").indexOf("data:media_item") === -1) {
-					return false;
-				}
-				return panel.style.display !== "none" && panel.style.visibility !== "hidden";
-			}
-		});
+		this.debug("loading overlay disappeared, can continue...");
+		
+		editingPanel = this.getEditingPanel();
 
 		if (!editingPanel) {
-			this.debug("failed to find editing panel");
+			this._decreaseTabShift();
 			return false;
 		}
-
-		resetButton = this.getResetButton();
+		
 		autoButton = this.getAutoButton();
 
 		if (!autoButton) {
-			this.debug("failed to find auto button");
+			this._decreaseTabShift();
 			return false;
 		}
-		if (!resetButton) {
-			this.debug("failed to find reset button");
+
+		undoButton = this.getUndoButton();
+
+		if (!undoButton) {
+			this._decreaseTabShift();
 			return false;
 		}
+
+		this._decreaseTabShift();
 
 		return true;
 	},
 
-	expectToEditingPanelToBeClosed: function() {
-		let editingPanel = this.getNode({
-			context: this.imageWindow,
-			selector: this.EDITING_PANEL_SELECTOR,
-			arrayIndex: "last",
-			preFilter: function (panel) {
-				if (panel.getAttribute("jslog").indexOf("data:media_item") === -1) {
-					return false;
-				}
-				return panel.style.display !== "none" && panel.style.visibility !== "hidden";
-			}
-		});
+	expectEditingPanelToBeClosed: function() {
+
+		let
+			editingPanel = this.getEditingPanel();
+
 		return !editingPanel;
 	},
 
+	getEditingPanel: function() {
+		let
+			editingPanels,
+			postFilter,
+			self = this;
+
+		postFilter = function (editingPanel) {
+			let
+				i,
+				editingPanelParent = editingPanel;
+
+			self._increaseTabShift();
+
+			// yeah, 9 times upper to parent
+			for (i = 0; i < 9; i++) {
+				editingPanelParent = editingPanelParent.parentNode;
+			}
+
+			if (editingPanelParent.className !== self.EDITING_PANEL_PARENT_CLASS_NAMES) {
+				self.debug("getEditingPanel() post filter: editingPanelParent class doesn't contain '" + self.EDITING_PANEL_PARENT_CLASS_NAMES + "' class (its class is: " + editingPanelParent.className + " )");
+				self._decreaseTabShift();
+				return false;
+			}
+
+			if (editingPanelParent.style.visibility === "hidden") {
+				self.debug("getEditingPanel() post filter: parent of editing panel is not visible !");
+				self._decreaseTabShift();
+				return false;
+			}
+
+			self._decreaseTabShift();
+
+			return true;
+		};
+
+		this.debug("launching getNode to find editing panel...");
+
+		editingPanels = this.getNode({
+			context:  this.imageWindow,
+			selector: this.EDITING_PANEL_SELECTOR,
+			arrayIndex: "all",
+			postFilter: postFilter
+		});
+
+		if (editingPanels.length === 0) {
+			this.debug("failed to find editing panel");
+			return null;
+		}
+
+		this.debug("editing panel found");
+
+		return editingPanels[0];
+	},
+
+	getUndoButton: function() {
+
+		let
+			self = this,
+			button;
+
+		this.debug("launching getNode to find undo button...");
+
+		button = this.getNode({
+			context: this.imageWindow,
+			selector: this.UNDO_EDITS_BUTTON_SELECTOR,
+			preFilter: function (button) {
+				let
+					i,
+					editingLayer = button;
+
+				self._increaseTabShift();
+
+				if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
+					self.debug("undo button contains 'disabled element' class name, skipping it");
+					self._decreaseTabShift();
+					return false;
+				}
+				if (button.style.display === "none") {
+					self.debug("undo button is hidden");
+					self._decreaseTabShift();
+					return false;
+				}
+
+				for (i = 0; i < 3; i++) {
+					editingLayer = editingLayer.parentNode;
+				}
+				if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
+					self.debug("editing layer above undo button does not contain required class name: should be '" + self.EDITING_LAYER_CLASS_NAMES + "', but have '" + editingLayer.className + "'");
+					self._decreaseTabShift();
+					return false;
+				}
+
+				if (editingLayer.style.visibility === "hidden") {
+					self.debug("editing layer above undo button is hidden");
+					self._decreaseTabShift();
+					return false;
+				}
+
+				self._decreaseTabShift();
+
+				return true;
+			},
+			arrayIndex: "last"
+		});
+
+		if (button) {
+			this.debug("undo button found !");
+		} else {
+			this.debug("failed to find undo button");
+		}
+
+		return button;
+	},
+
+	getAutoButton: function() {
+		let
+			self = this,
+			button;
+
+		this.debug("launching getNode to find auto button...");
+
+		button = this.getNode({
+			context: this.imageWindow,
+			selector: this.AUTO_IMAGE_BUTTON_SELECTOR,
+			preFilter: function (button) {
+				let
+					i,
+					editingPanel = button;
+
+				self._increaseTabShift();
+
+				if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
+					self.debug("auto button contains 'disabled element' class name, skipping it");
+					self._decreaseTabShift();
+					return false;
+				}
+				if (button.style.display === "none") {
+					self.debug("auto button is hidden");
+					self._decreaseTabShift();
+					return false;
+				}
+
+				for (i = 0; i < 10; i++) {
+					editingPanel = editingPanel.parentNode;
+				}
+
+				if (editingPanel.className !== self.EDITING_PANEL_PARENT_CLASS_NAMES) {
+					self.debug("editing panel above auto button does not contain required class name: should be '" + self.EDITING_PANEL_PARENT_CLASS_NAMES + "', but have '" + editingPanel.className + "'");
+					self._decreaseTabShift();
+					return false;
+				}
+				if (editingPanel.style.visibility === "hidden") {
+					self.debug("editing panel above auto button is hidden");
+					self._decreaseTabShift();
+					return false;
+				}
+
+				self._decreaseTabShift();
+
+				return true;
+			},
+			arrayIndex: "last"
+		});
+		
+		if (button) {
+			this.debug("auto button found !");
+		} else {
+			this.debug("failed to find auto button");
+		}
+
+		return button;
+	},
+
+	// =======================================================================================================
+
+	checkIfPhotoIsEnhanced: function() {
+
+		let
+			undoButton,
+			autoButton;
+
+		this.debug("---------- next stage: check if photo is enhanced ----------");
+
+		this.debug("Getting undo and auto buttons...");
+
+		undoButton = this.getUndoButton();
+		autoButton = this.getAutoButton();
+
+		if (undoButton && autoButton) {
+			// this is kind of error
+			debugger;
+		} else {
+			debugger;
+		}
+
+		return;
+
+		if (autoButton) {
+			this.clickOnEnhanceButton();
+		} else {
+			this.finishProcessingImage();
+		}
+	},
+	
+	// =======================================================================================================
+
 	getSharedDialog: function() {
-		return this.getNode({
+		let
+			dialog;
+
+		this.debug("launching getNode to find shared photo dialog...");
+
+		dialog = this.getNode({
 			context: this.imageWindow,
 			selector: this.SHARED_PHOTO_DIALOG_SELECTOR,
 			arrayIndex: "last"
 		});
+
+		return dialog;
 	},
 
 	getEditButton: function() {
@@ -611,7 +847,6 @@ var awesomer = {
 			self = this;
 
 		postFilter = function (button) {
-			// yeah, 7 times upper to parent
 			let
 				i,
 				editingLayer = button;
@@ -640,8 +875,10 @@ var awesomer = {
 				return false;
 			}
 
-			return false;
+			return true;
 		};
+
+		this.debug("launching getNode to find edit photo button...");
 
 		editButton = this.getNode({
 			context:  this.imageWindow,
@@ -649,125 +886,27 @@ var awesomer = {
 			arrayIndex: 1,
 			postFilter: postFilter
 		});
+		
+		if (editButton) {
+			this.debug("found edit photo button !");
+		} else {
+			this.debug("failed to find edit photo button");
+		}
 
 		return editButton;
 	},
-
-	getEditingPanel: function() {
-		let
-			editButton,
-			postFilter,
-			self = this;
-
-		postFilter = function (button) {
-			// yeah, 7 times upper to parent
-			let
-				i,
-				editingLayer = button;
-
-			for (i = 0; i < 7; i++) {
-				editingLayer = editingLayer.parentNode;
-			}
-
-			if (editingLayer.className !== self.VIEWING_LAYER_CLASS_NAMES) {
-				self.debug("button class doesn't contain '" + self.VIEWING_LAYER_CLASS_NAMES + "' class (its class is: " + editingLayer.className + " )");
-				return false;
-			}
-
-			if (button.getAttribute("jslog").indexOf("8919;") === -1) {
-				self.debug("button attribute doesn't contain '8919;' text (its text is: " + button.getAttribute("jslog") + " )");
-				return false;
-			}
-
-			if (editingLayer.style.display === "none") {
-				self.debug("editing layer of edit button is not visible !");
-				return false;
-			}
-
-			if (button.style.display === "none") {
-				self.debug("editing layer of edit button is not visible !");
-				return false;
-			}
-
-			return false;
-		};
-
-		editButton = this.getNode({
-			context:  this.imageWindow,
-			selector: this.EDIT_PHOTO_ICON_SELECTOR,
-			arrayIndex: 1,
-			postFilter: postFilter
-		});
-
-		return editButton;
-	},
-
-	getResetButton: function() {
+	
+	getVignetteSlider: function() {
 		let
 			self = this,
-			button;
+			slider;
 
-		button = this.getNode({
-			context: this.imageWindow,
-			selector: this.RESET_IMAGE_BUTTON_SELECTOR,
-			arrayIndex: "last",
-			preFilter: function (button) {
-				// yeah, 9 times upper to parent
-				var editingLayer = button;
-				for (var i = 0; i < 9; i++) {
-					editingLayer = editingLayer.parentNode;
-				}
-				if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
-					return false;
-				}
-				if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
-					return false;
-				}
-				if (editingLayer.style.display !== "none" && button.style.display !== "none") {
-					return true;
-				}
-				return false;
-			}
-		});
+		this.debug("launching getNode to find vignete slider...");
 
-		return button;
-	},
-
-	getAutoButton: function() {
-		var self = this;
-		return this.getNode({
-			context: this.imageWindow,
-			selector: this.AUTO_IMAGE_BUTTON_SELECTOR,
-			arrayIndex: "last",
-			preFilter: function (button) {
-				// yeah, 9 times upper to parent
-				var editingLayer = button;
-				for (var i = 0; i < 9; i++) {
-					editingLayer = editingLayer.parentNode;
-				}
-				if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
-					return false;
-				}
-				if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
-					return false;
-				}
-				if (editingLayer.style.display !== "none" && button.style.display !== "none") {
-					return true;
-				}
-				return false;
-			}
-		});
-	},
-
-	getVignetteSlider: function() {
-		var self = this;
-
-		return this.getNode({
+		slider = this.getNode({
 			context: this.imageWindow,
 			selector: this.VIGNETTE_SLIDER_SELECTOR,
-			arrayIndex: "last",
 			preFilter: function (button) {
-				// yeah, 10 times upper to parent
 				var editingLayer = button;
 				for (var i = 0; i < 10; i++) {
 					editingLayer = editingLayer.parentNode;
@@ -782,18 +921,24 @@ var awesomer = {
 					return true;
 				}
 				return false;
-			}
+			},
+			arrayIndex: "last"
 		});
+
+		return slider;
 	},
 
 	getSaveButton: function() {
-		var self = this;
-		return this.getNode({
+		let
+			self = this,
+			button;
+
+		this.debug("launching getNode to find done button...");
+
+		button = this.getNode({
 			context: this.imageWindow,
-			selector: this.SAVE_IMAGE_BUTTON_SELECTOR,
-			arrayIndex: "last",
+			selector: this.DONE_BUTTON_SELECTOR,
 			preFilter: function (button) {
-				// yeah, 3 times upper to parent
 				var editingLayer = button;
 				for (var i = 0; i < 3; i++) {
 					editingLayer = editingLayer.parentNode;
@@ -808,16 +953,23 @@ var awesomer = {
 					return true;
 				}
 				return false;
-			}
+			},
+			arrayIndex: "last"
 		});
+
+		return button;
 	},
 
 	getSaveButtonOnSharedConfirmDialog: function() {
-		var self = this;
-		return this.getNode({
+		let
+			self = this,
+			button;
+
+		this.debug("launching getNode to find save image button on shared dialog...");
+
+		button = this.getNode({
 			context: this.imageWindow,
 			selector: this.SAVE_IMAGE_BUTTON_ON_SHARED_DIALOG_SELECTOR,
-			arrayIndex: "last",
 			preFilter: function (button) {
 				if (button.className.indexOf(self.DISABLED_ELEMENT_CLASS_NAME) !== -1) {
 					return false;
@@ -826,57 +978,34 @@ var awesomer = {
 					return true;
 				}
 				return false;
-			}
+			},
+			arrayIndex: "last"
 		});
-	},
 
-	checkIfPhotoIsEnhanced: function() {
-
-		let
-			resetButton,
-			autoButton;
-
-		this._increaseTabShift();
-
-		this.debug("Getting reset and auto buttons...");
-
-		resetButton = this.getResetButton();
-		autoButton = this.getAutoButton();
-
-		if (resetButton && autoButton) {
-			// this is kind of error
-			debugger;
-		} else {
-			debugger;
-		}
-
-		return;
-
-		if (autoButton) {
-			this.clickOnEnhanceButton();
-		} else {
-			this.finishProcessingImage();
-		}
-
-		this._decreaseTabShift();
+		return button;
 	},
 
 	clickOnEnhanceButton: function() {
 
-		var autoButton = this.getAutoButton();
+		let
+			autoButton,
+			self = this;
+		
+		autoButton = this.getAutoButton();
 
 		this.debug("clicking on Auto button: ", autoButton);
 
 		this.mouseDownUpOnElement(autoButton);
 
 		this.debug("waiting for image to be enhanced...");
-
-		var self = this;
+		
 		this.runWaiter({
 			method: "decreaseVignetteLevel",
 			checker: function() {
-				var resetButton = self.getResetButton();
-				return !!resetButton;
+				let
+					undoButton = self.getUndoButton();
+
+				return !!undoButton;
 			}
 		});
 	},
@@ -918,7 +1047,7 @@ var awesomer = {
 
 	expectDialogOrEditingPanelClosed: function() {
 		var dialog = this.getSharedDialog();
-		var editingDialogClosed = this.expectToEditingPanelToBeClosed();
+		var editingDialogClosed = this.expectEditingPanelToBeClosed();
 
 		if (editingDialogClosed) {
 			return true;
@@ -933,7 +1062,7 @@ var awesomer = {
 
 	manageConfirmDialogOrEditingPanelClosed: function() {
 		var dialog = this.getSharedDialog();
-		var editingDialogClosed = this.expectToEditingPanelToBeClosed();
+		var editingDialogClosed = this.expectEditingPanelToBeClosed();
 
 		if (editingDialogClosed) {
 			this.debug("image is saved, finishing with this image...");
@@ -965,7 +1094,7 @@ var awesomer = {
 
 		this.runWaiter({
 			method: "finishProcessingImage",
-			checker: this.expectToEditingPanelToBeClosed.bind(this)
+			checker: this.expectEditingPanelToBeClosed.bind(this)
 		});
 	},
 
