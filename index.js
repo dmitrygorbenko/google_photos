@@ -29,21 +29,47 @@ var awesomer = {
 	imagesProcessed: 0,
 	imageWindow: window,
 
+	_trace: function() {
+		let
+			stack;
+
+		try {
+			throw new Error('myError');
+		}
+		catch(e) {
+			stack = e.stack;
+		}
+
+		stack = stack.split("\n");
+
+		stack.forEach(function(line, index) {
+			stack[index] = line.trim().replace("at ", "").replace("Object.", "");
+		});
+
+		return stack;
+	},
+
 	debug: function() {
 		let
 			args,
+			stack,
+			addStack = false,
 			tabShift;
+
+		stack = this._trace();
+		stack.shift();
+		stack.shift();
+		stack.shift();
 
 		tabShift = this._getTabShift();
 
 		args = Array.prototype.slice.call(arguments);
 
-		args.forEach(function(value, key) {
-			if (typeof value === "string") {
-				args[key] = tabShift + value;
-			}
-		});
-
+		args.unshift(tabShift);
+		if (addStack) {
+			args.push(stack);
+		}
+		
 		console.log.apply(console, args);
 	},
 
@@ -61,7 +87,14 @@ var awesomer = {
 			clearTimeout(window.__awesomer_condition_checker);
 		}
 		window.__awesomer_condition_checker = null;
-
+		// and child window links
+		if (window.__awesomer_child_windows) {
+			window.__awesomer_child_windows.forEach(function(wind) {
+				wind.close();
+			});
+		}
+		window.__awesomer_child_windows = [];
+		
 		this.loadProcessedImages();
 
 		if (Object.keys(this.processedImages).length > 0) {
@@ -119,6 +152,10 @@ var awesomer = {
 		this._increaseTabShift();
 
 		this.waiter = function () {
+
+			let
+				checkerResult;
+
 			if (window.d === true) {
 				debugger;
 			}
@@ -126,8 +163,10 @@ var awesomer = {
 				return;
 			}
 
-			if (options.checker() === true) {
-				self.debug("condition matched !!!");
+			checkerResult = options.checker();
+
+			if (checkerResult === true) {
+				self.debug("condition matched !!! Going to launch method: " + options.method);
 				self._decreaseTabShift();
 
 				if (options.onDone) {
@@ -149,7 +188,7 @@ var awesomer = {
 			}, 500);
 		};
 
-		this.debug("starting checking condition...");
+		this.debug("starting condition checks...");
 		this.waiter();
 	},
 
@@ -158,6 +197,7 @@ var awesomer = {
 	},
 
 	addPositionToEvent: function(info, position) {
+
 		info.clientX = position.left;
 		info.clientY = position.top;
 
@@ -237,6 +277,22 @@ var awesomer = {
 		// convert into normal array
 		nodes = Array.prototype.slice.call(nodes);
 
+		if (nodes.length === 0) {
+			this._increaseTabShift();
+			this.debug("selector returned 0 nodes. Selector is: '" + options.selector + "'");
+			this._decreaseTabShift();
+
+			if (typeof options.arrayIndex !== "undefined") {
+				if (options.arrayIndex === "all") {
+					return [];
+				}
+				// other cases request one element
+				return null;
+			}
+
+			return [];
+		}
+
 		if (typeof options.preFilter === "function") {
 			let
 				filteredNodes = [];
@@ -249,7 +305,9 @@ var awesomer = {
 				});
 				nodes = filteredNodes;
 				if (nodes.length === 0) {
+					this._increaseTabShift();
 					this.debug("pre filter discarded all nodes");
+					this._decreaseTabShift();
 				}
 			}
 		}
@@ -278,7 +336,9 @@ var awesomer = {
 				});
 				nodes = filteredNodes;
 				if (nodes.length === 0) {
+					this._increaseTabShift();
 					this.debug("post filter discarded all nodes");
+					this._decreaseTabShift();
 				}
 			}
 		}
@@ -321,12 +381,12 @@ var awesomer = {
 				newImagesCount++;
 			}
 		});
-		this.debug("Found ", newImagesCount, " new images");
+		this.debug("Found " + newImagesCount + " new images");
 
 		if (newImagesCount === 0) {
 			if (this.haveWeReachedBottom()) {
 				this.debug("We have reached bottom, stopping...");
-				this.debug("Total processed images: ", Object.keys(this.processedImages).length);
+				this.debug("Total processed images: " + Object.keys(this.processedImages).length);
 				this.saveProcessedImages();
 				window.onbeforeunload = null;
 				return;
@@ -383,6 +443,7 @@ var awesomer = {
 		href = this.imageToProcess.href;
 
 		this.imageWindow = window.open(href, "awesomer", "menubar=yes,location=yes,resizable=yes,scrollbars=yes,status=yes");
+		window.__awesomer_child_windows.push(this.imageWindow);
 
 		this.debug("waiting for image to be opened in separate tab");
 
@@ -452,22 +513,22 @@ var awesomer = {
 
 		this._increaseTabShift();
 
-		this.debug("clicking on editing icon");
+		this.debug("clicking on editing icon...");
 
 		this.mouseDownUpOnElement(editIcon);
 
-		this.debug("waiting for editing interface to be loaded");
+		this.debug("waiting for editing interface to be loaded...");
 
 		this.runWaiter({
 			method: "checkIfPhotoIsEnhanced",
-			checker: this.expectToEditingPanelToBeOpened.bind(this),
+			checker: this._expectEditingPanelToBeOpened.bind(this),
 			onDone: function () {
 				self._decreaseTabShift();
 			}
 		});
 	},
 
-	expectToEditingPanelToBeOpened: function() {
+	_expectEditingPanelToBeOpened: function() {
 		let
 			editingPanel,
 			resetButton,
@@ -483,8 +544,8 @@ var awesomer = {
 			}
 		});
 
-		if (!loadingOverlay) {
-			this.debug("failed to find loading overlay");
+		if (loadingOverlay) {
+			this.debug("loading overlay is still there... waiting....");
 			return false;
 		}
 
@@ -521,7 +582,7 @@ var awesomer = {
 	},
 
 	expectToEditingPanelToBeClosed: function() {
-		var editingPanel = this.getNode({
+		let editingPanel = this.getNode({
 			context: this.imageWindow,
 			selector: this.EDITING_PANEL_SELECTOR,
 			arrayIndex: "last",
@@ -592,9 +653,61 @@ var awesomer = {
 		return editButton;
 	},
 
+	getEditingPanel: function() {
+		let
+			editButton,
+			postFilter,
+			self = this;
+
+		postFilter = function (button) {
+			// yeah, 7 times upper to parent
+			let
+				i,
+				editingLayer = button;
+
+			for (i = 0; i < 7; i++) {
+				editingLayer = editingLayer.parentNode;
+			}
+
+			if (editingLayer.className !== self.VIEWING_LAYER_CLASS_NAMES) {
+				self.debug("button class doesn't contain '" + self.VIEWING_LAYER_CLASS_NAMES + "' class (its class is: " + editingLayer.className + " )");
+				return false;
+			}
+
+			if (button.getAttribute("jslog").indexOf("8919;") === -1) {
+				self.debug("button attribute doesn't contain '8919;' text (its text is: " + button.getAttribute("jslog") + " )");
+				return false;
+			}
+
+			if (editingLayer.style.display === "none") {
+				self.debug("editing layer of edit button is not visible !");
+				return false;
+			}
+
+			if (button.style.display === "none") {
+				self.debug("editing layer of edit button is not visible !");
+				return false;
+			}
+
+			return false;
+		};
+
+		editButton = this.getNode({
+			context:  this.imageWindow,
+			selector: this.EDIT_PHOTO_ICON_SELECTOR,
+			arrayIndex: 1,
+			postFilter: postFilter
+		});
+
+		return editButton;
+	},
+
 	getResetButton: function() {
-		var self = this;
-		return this.getNode({
+		let
+			self = this,
+			button;
+
+		button = this.getNode({
 			context: this.imageWindow,
 			selector: this.RESET_IMAGE_BUTTON_SELECTOR,
 			arrayIndex: "last",
@@ -616,6 +729,8 @@ var awesomer = {
 				return false;
 			}
 		});
+
+		return button;
 	},
 
 	getAutoButton: function() {
@@ -718,14 +833,23 @@ var awesomer = {
 	checkIfPhotoIsEnhanced: function() {
 
 		let
-			resetButton = this.getResetButton(),
-			autoButton = this.getAutoButton();
+			resetButton,
+			autoButton;
+
+		this._increaseTabShift();
+
+		this.debug("Getting reset and auto buttons...");
+
+		resetButton = this.getResetButton();
+		autoButton = this.getAutoButton();
 
 		if (resetButton && autoButton) {
+			// this is kind of error
+			debugger;
+		} else {
 			debugger;
 		}
 
-		debugger;
 		return;
 
 		if (autoButton) {
@@ -733,6 +857,8 @@ var awesomer = {
 		} else {
 			this.finishProcessingImage();
 		}
+
+		this._decreaseTabShift();
 	},
 
 	clickOnEnhanceButton: function() {
@@ -860,6 +986,7 @@ var awesomer = {
 	closeChildWindow: function () {
 
 		this.imageWindow.close();
+		window.__awesomer_child_windows.pop();
 
 		this.executeMethodIn("processFoundImages", this.secondsToWaitForLoading);
 	},
