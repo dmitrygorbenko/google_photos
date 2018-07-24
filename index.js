@@ -24,7 +24,6 @@ var awesomer = {
 	pixelsToScroll: 500,
 	secondsToWaitForVignetting: 100,
 
-	processedImages: {},
 	newImagesToProcess: [],
 	imageToProcess: false,
 	indexOfProcessingImage: 0,
@@ -33,6 +32,48 @@ var awesomer = {
 	imagesProcessed: 0,
 	imageWindow: window,
 
+	STORAGE_KEY_NAME: "processedImages",
+
+	// =======================================================================================================
+
+	loadProcessedImages: function() {
+		let
+			loadedData = false,
+			processedImages,
+			processedImagesString = localStorage.getItem(this.STORAGE_KEY_NAME);
+
+		if (processedImagesString) {
+			processedImages = JSON.parse(processedImagesString);
+			if (processedImages) {
+				loadedData = true;
+			}
+		}
+
+		if (!loadedData) {
+			processedImages = {};
+		}
+
+		this.processedImages = processedImages;
+	},
+
+	beforeReloadingPage: function() {
+		this.saveProcessedImages();
+	},
+
+	clearProcessedImages: function() {
+		localStorage.setItem(this.STORAGE_KEY_NAME, null);
+		this.processedImages = {};
+	},
+
+	saveProcessedImages: function() {
+		let
+			processedImagesString = JSON.stringify(this.processedImages);
+
+		localStorage.setItem(this.STORAGE_KEY_NAME, processedImagesString);
+	},
+
+	// =======================================================================================================
+
 	run: function () {
 		let
 			self = this;
@@ -40,7 +81,6 @@ var awesomer = {
 		console.clear();
 
 		// clean internal vars
-		this.processedImages = {};
 		window.d = false;
 		window.stop = false;
 		// and timers
@@ -57,8 +97,14 @@ var awesomer = {
 		window.__awesomer_child_windows = [];
 
 		this.loadProcessedImages();
+		if (typeof this.processedImages["__path"] === "undefined"
+			||
+			typeof this.processedImages["__path"] !== window.location.pathname) {
+			this.processedImages = {};
+			this.processedImages["__path"] = window.location.pathname;
+		}
 
-		if (Object.keys(this.processedImages).length > 0) {
+		if (Object.keys(this.processedImages).length > 1) {
 			if (!confirm("Do you want to continue processing images?")) {
 				this.clearProcessedImages();
 			}
@@ -81,45 +127,17 @@ var awesomer = {
 		}
 		this.debug("The container is: ", this.container);
 
-		this.executeMethodIn("findNewImages", this.secondsToWaitForLoading);
-	},
-
-	loadProcessedImages: function() {
-		let
-			processedImagesString = localStorage.getItem("processedImages");
-
-		if (processedImagesString === "null" || processedImagesString === null) {
-			return;
-		}
-
-		this.processedImages = JSON.parse(processedImagesString);
-	},
-
-	beforeReloadingPage: function() {
-		this.saveProcessedImages();
-	},
-
-	clearProcessedImages: function() {
-		localStorage.setItem("processedImages", null);
-		this.processedImages = {};
-	},
-
-	saveProcessedImages: function() {
-		let
-			processedImagesString = JSON.stringify(this.processedImages);
-
-		localStorage.setItem("processedImages", processedImagesString);
+		this.executeMethodIn("findPhotosInAlbum", this.secondsToWaitForLoading);
 	},
 
 	// =======================================================================================================
 
-	findNewImages: function () {
+	findPhotosInAlbum: function () {
 		let
 			self = this,
 			images,
 			newImagesCount = 0;
 
-		this.newImagesToProcess = [];
 		newImagesCount = 0;
 
 		images = this.getNodes(window, this.ACTIVE_IMAGES_SELECTOR);
@@ -138,7 +156,7 @@ var awesomer = {
 		if (newImagesCount === 0) {
 			if (this.haveWeReachedBottom()) {
 				this.debug("We have reached bottom, stopping...");
-				this.debug("Total processed images: " + Object.keys(this.processedImages).length);
+				this.debug("Total processed images: " + (Object.keys(this.processedImages).length - 1));
 				this.saveProcessedImages();
 				window.onbeforeunload = null;
 				return;
@@ -167,7 +185,7 @@ var awesomer = {
 
 		this.container.scrollTop = parseInt(this.container.scrollTop) + this.pixelsToScroll;
 
-		this.executeMethodIn("findNewImages", this.secondsToWaitForLoading);
+		this.executeMethodIn("findPhotosInAlbum", this.secondsToWaitForLoading);
 	},
 
 	// =======================================================================================================
@@ -222,7 +240,7 @@ var awesomer = {
 			controlPanel,
 			editIcon;
 
-		this.debug("checker: if image interface is loaded");
+		this.debug("checker: checking if image interface is loaded");
 
 		this.debug("launching getNode to find image control panel...");
 
@@ -293,7 +311,7 @@ var awesomer = {
 
 		this._increaseTabShift();
 
-		this.debug("checker: editing panel is opened");
+		this.debug("checker: checking if editing panel is opened");
 
 		this.debug("launching getNode to find loading overlay...");
 
@@ -402,7 +420,7 @@ var awesomer = {
 
 		this._increaseTabShift();
 
-		this.debug("checker: image gets enhanced, waiting for undo button appearing");
+		this.debug("checker: checking if image gets enhanced, waiting for undo button appearing");
 
 		undoButton = this.getUndoButton();
 
@@ -769,7 +787,7 @@ var awesomer = {
 				for (i = 0; i < 3; i++) {
 					editingLayer = editingLayer.parentNode;
 				}
-				if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
+				if (editingLayer.className.indexOf(self.EDITING_LAYER_CLASS_NAMES) === -1) {
 					self.debug("editing layer above done button does not contain required class name: should be '" + self.EDITING_LAYER_CLASS_NAMES + "', but have '" + editingLayer.className + "'");
 					self._decreaseTabShift();
 					return false;
@@ -829,7 +847,7 @@ var awesomer = {
 				for (i = 0; i < 3; i++) {
 					editingLayer = editingLayer.parentNode;
 				}
-				if (editingLayer.className !== self.EDITING_LAYER_CLASS_NAMES) {
+				if (editingLayer.className.indexOf(self.EDITING_LAYER_CLASS_NAMES) === -1) {
 					self.debug("editing layer above undo button does not contain required class name: should be '" + self.EDITING_LAYER_CLASS_NAMES + "', but have '" + editingLayer.className + "'");
 					self._decreaseTabShift();
 					return false;
