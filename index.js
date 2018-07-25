@@ -24,9 +24,9 @@ var awesomer = {
 	pixelsToScroll: 500,
 	secondsToWaitForVignetting: 100,
 
-	newImagesToProcess: [],
+	foundImagesToProcess: [],
 	imageToProcess: false,
-	indexOfProcessingImage: 0,
+	indexOfProcessingImage: -1,
 
 	methodToExecute: "",
 	imagesProcessed: 0,
@@ -122,52 +122,107 @@ var awesomer = {
 		});
 
 		if (!this.container) {
-			this.debug("Failed to get container !");
+			this.debug("Failed to find container on a page !");
 			return;
 		}
 		this.debug("The container is: ", this.container);
+
+		this.debug("Searching new images in this album...");
+
+		this._increaseTabShift();
 
 		this.executeMethodIn("findPhotosInAlbum", this.secondsToWaitForLoading);
 	},
 
 	// =======================================================================================================
 
+	_findPhotosInAlbumVars: {
+		_iterations: 0,
+		_maxIterationsAmount: 100,
+		imagesFoundInAlbum: {}
+	},
+
 	findPhotosInAlbum: function () {
 		let
 			self = this,
 			images,
-			newImagesCount = 0;
-
-		newImagesCount = 0;
+			newImagesCount,
+			imagesFoundInAlbum,
+			continueSearchingImages = true;
 
 		images = this.getNodes(window, this.ACTIVE_IMAGES_SELECTOR);
 
+		this.debug("Found " + images.length + " image DOM nodes on a page...");
+
+		newImagesCount = 0;
 		images.forEach(function (image) {
 			let
+				newImageHref = true,
 				href = self.getHrefFromImage(image);
 
-			if (!(href in self.processedImages)) {
-				self.newImagesToProcess.push(image);
+			// check if image was processed by the previous run
+			if (href in self.processedImages) {
+				self.debug("Found image which was processed on a previous run");
+				newImageHref = false;
+			}
+			// check if we have found already this image
+			if (typeof self._findPhotosInAlbumVars.imagesFoundInAlbum[href] !== "undefined") {
+				newImageHref = false;
+			}
+
+			if (newImageHref === true) {
+				self.debug("new image href: " + href);
+				self.foundImagesToProcess.push(image);
+				self._findPhotosInAlbumVars.imagesFoundInAlbum[href] = true;
 				newImagesCount++;
 			}
 		});
-		this.debug("Found " + newImagesCount + " new images");
 
+		// report what we have found
+		if (newImagesCount > 0) {
+			this.debug("Found " + newImagesCount + " new images not processed yet");
+		} else {
+			this.debug("Have not found any new images");
+		}
+
+		// have we reached the end of the album ?
 		if (newImagesCount === 0) {
 			if (this.haveWeReachedBottom()) {
-				this.debug("We have reached bottom, stopping...");
-				this.debug("Total processed images: " + (Object.keys(this.processedImages).length - 1));
-				this.saveProcessedImages();
-				window.onbeforeunload = null;
-				return;
+				continueSearchingImages = false;
 			}
-		} else {
-			this.indexOfProcessingImage = -1;
-			this.executeMethodIn("processFoundImages", 0);
+		}
+
+		// check for endless loop
+		this._findPhotosInAlbumVars._iterations++;
+		if (this._findPhotosInAlbumVars._iterations > this._findPhotosInAlbumVars._maxIterationsAmount) {
+			this.debug("Reached maximum amount of loops (" + this._findPhotosInAlbumVars._maxIterationsAmount + ") to search new images. Seems like an endless loop. Stopping.");
+			continueSearchingImages = false;
+		}
+
+		// now, decide what to do: go to the next loop or stop searching
+		if (continueSearchingImages) {
+			this.debug("Moving page scroll " + this.pixelsToScroll + " pixels down...");
+			this.container.scrollTop = parseInt(this.container.scrollTop) + this.pixelsToScroll;
+			this.debug("Launching myself in a moment...");
+			this.executeMethodIn("findPhotosInAlbum", 1000);
 			return;
 		}
 
-		this.scrollDownAndFindNextImages();
+		// this is like an end of the search
+
+		this._decreaseTabShift();
+
+		this.container.scrollTop = 0;
+
+		imagesFoundInAlbum = Object.keys(this.foundImagesToProcess).length;
+
+		if (!confirm("Found " + imagesFoundInAlbum + " images. Do you want to continue ?")) {
+			return;
+		}
+
+		this.debug("In this album we found " + imagesFoundInAlbum + " images. Going to process all of them one by one...");
+
+		this.executeMethodIn("processFoundImages", 1000);
 	},
 
 	haveWeReachedBottom: function() {
@@ -181,18 +236,15 @@ var awesomer = {
 		return newPosition === currentPosition;
 	},
 
-	scrollDownAndFindNextImages: function () {
-
-		this.container.scrollTop = parseInt(this.container.scrollTop) + this.pixelsToScroll;
-
-		this.executeMethodIn("findPhotosInAlbum", this.secondsToWaitForLoading);
-	},
-
 	// =======================================================================================================
 
 	processFoundImages: function () {
-		if (this.indexOfProcessingImage === (this.newImagesToProcess.length - 1)) {
-			this.scrollDownAndFindNextImages();
+
+		if (this.indexOfProcessingImage === (this.foundImagesToProcess.length - 1)) {
+
+			// this is the end, closing everything
+			window.onbeforeunload = null;
+
 			return;
 		}
 
@@ -208,7 +260,7 @@ var awesomer = {
 			href,
 			self = this;
 
-		this.imageToProcess = this.newImagesToProcess[this.indexOfProcessingImage];
+		this.imageToProcess = this.foundImagesToProcess[this.indexOfProcessingImage];
 
 		this.debug("clicking on image: ", this.imageToProcess);
 
@@ -529,6 +581,7 @@ var awesomer = {
 		this.imagesProcessed++;
 		this.saveProcessedImages();
 		this.closeChildWindow();
+		this.executeMethodIn("processFoundImages", this.secondsToWaitForLoading);
 	},
 
 	markCurrentImageAsProcessed: function() {
@@ -536,17 +589,14 @@ var awesomer = {
 			href;
 
 		// put this image into 'processedArray'
-		this.imageToProcess = this.newImagesToProcess[this.indexOfProcessingImage];
+		this.imageToProcess = this.foundImagesToProcess[this.indexOfProcessingImage];
 		href = this.getHrefFromImage(this.imageToProcess);
 		this.processedImages[href] = true;
 	},
 
 	closeChildWindow: function () {
-
 		this.imageWindow.close();
 		window.__awesomer_child_windows.pop();
-
-		this.executeMethodIn("processFoundImages", this.secondsToWaitForLoading);
 	},
 
 	// =======================================================================================================
